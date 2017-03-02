@@ -18,42 +18,66 @@ var initUser = new Queue(ref, {specId: 'init_user', 'sanitize': false}, function
   // progress(10);
 
   var userRef = admin.database().ref('user').child(data._uid)
+  var authRef = admin.auth()
 
-  // Check for existing records
-  userRef.once('value', (snap) => {
-    // If user is already set
-    if (snap.val()) {
-      reject('User is already set!')
-    } else {
-      // Insert new user
-      userRef.set(setUser()).then(() => {
-        resolve()
-      }, (error) => {
-        reject(error)
-      })
-    }
-  }, (error) => {
-    reject(error)
+
+  // Get user auth for email address
+  authRef.getUser(data._uid)
+  .then((userAuth) => {
+    // Check if the user has already been initialized
+    userRef.once('value')
+    .then((snap) => {
+      if (snap.val()) {
+        // If user is already set
+        reject('User is already initialized!')
+      } else {
+        // User not set
+        // Insert new user
+        let newUser = setUser()
+        newUser.email = userAuth.email
+        userRef.set(newUser)
+        .then(() => {
+          resolve()
+        })
+        .catch((error) => {
+          reject(error)
+        })
+      }
+    })
+    .catch((error) => {
+      reject(error)
+    })
   })
+  .catch((error) => {
+    reject(error)
+  });
+
 
 });
 
 // Move error to fail path
 var error = new Queue(ref, {specId: 'error', 'sanitize': false}, function(data, progress, resolve, reject) {
-  // progress(10);
-
+  // Write the failed task to the database
   var failRef = admin.database().ref('queue').child('fail')
-
   failRef.push(data).then(() => {
     resolve()
   }, (error) => {
     console.log(error)
     resolve()
   })
-
 });
 
-// ref.child('tasks').push({'_state': 'init_user', '_uid': 'E0vy', 'foo': 'bar'});
+// Move error to crit path
+var crit = new Queue(ref, {specId: 'crit', 'sanitize': false}, function(data, progress, resolve, reject) {
+  // Write the failed task to the database
+  var critRef = admin.database().ref('queue').child('crit')
+  critRef.push(data).then(() => {
+    resolve()
+  }, (error) => {
+    console.log(error)
+    resolve()
+  })
+});
 
 console.log('Listening...')
 
