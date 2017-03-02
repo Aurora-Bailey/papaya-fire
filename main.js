@@ -11,42 +11,65 @@ admin.initializeApp({
 });
 
 // Setup Queue
-
-let process_count = 0;
-
 var ref = admin.database().ref('queue');
-var options = {
-  'specId': 'build_profile',
-  'numWorkers': 5
-};
-var queue = new Queue(ref, function(data, progress, resolve, reject) {
-  // Read and process task data
-  console.log(process_count, data);
-  process_count++;
 
-  // Do some work
-  progress(50);
+// Add user to database
+var initUser = new Queue(ref, {specId: 'init_user', 'sanitize': false}, function(data, progress, resolve, reject) {
+  // progress(10);
 
-  // Finish the task asynchronously
-  setTimeout(function() {
-    resolve();
-  }, 5000);
+  var userRef = admin.database().ref('user').child(data._uid)
+
+  // Check for existing records
+  userRef.once('value', (snap) => {
+    // If user is already set
+    if (snap.val()) {
+      reject('User is already set!')
+    } else {
+      // Insert new user
+      userRef.set(setUser()).then(() => {
+        resolve()
+      }, (error) => {
+        reject(error)
+      })
+    }
+  }, (error) => {
+    reject(error)
+  })
+
 });
 
+// Move error to fail path
+var error = new Queue(ref, {specId: 'error', 'sanitize': false}, function(data, progress, resolve, reject) {
+  // progress(10);
 
-ref.child('tasks').push({'foo': 'bar'});
-ref.child('tasks').push({'foo': 'bar'});
-ref.child('tasks').push({'foo': 'bar'});
-ref.child('tasks').push({'foo': 'bar'});
-ref.child('tasks').push({'foo': 'bar'});
+  var failRef = admin.database().ref('queue').child('fail')
 
-ref.child('tasks').push({'foo': 'bar'});
-ref.child('tasks').push({'foo': 'bar'});
-ref.child('tasks').push({'foo': 'bar'});
-ref.child('tasks').push({'foo': 'bar'});
-ref.child('tasks').push({'foo': 'bar'});
+  failRef.push(data).then(() => {
+    resolve()
+  }, (error) => {
+    console.log(error)
+    resolve()
+  })
 
-ref.child('tasks').push({'foo': 'bar'});
+});
 
+// ref.child('tasks').push({'_state': 'init_user', '_uid': 'E0vy', 'foo': 'bar'});
 
-console.log('setup')
+console.log('Listening...')
+
+function setUser () {
+  return {
+    locationName: 'Not Set',
+    locationLong: 0,
+    locationLat: 0,
+    displayName: '',
+    pictureURL: '',
+    firstName: '',
+    lastName: '',
+    distance: 20,
+    birthday: Date.now(), // Timestamp
+    email: '',
+    bio: '',
+    sex: 'na'
+  }
+}
