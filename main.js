@@ -15,11 +15,8 @@ var ref = admin.database().ref('queue');
 
 // Add user to database
 var initUser = new Queue(ref, {specId: 'init_user', 'sanitize': false}, function(data, progress, resolve, reject) {
-  // progress(10);
-
   var userRef = admin.database().ref('user').child(data._uid)
   var authRef = admin.auth()
-
 
   // Get user auth for email address
   authRef.getUser(data._uid)
@@ -51,8 +48,6 @@ var initUser = new Queue(ref, {specId: 'init_user', 'sanitize': false}, function
   .catch((error) => {
     reject(error)
   });
-
-
 });
 
 // Move error to fail path
@@ -84,8 +79,8 @@ console.log('Listening...')
 function setUser () {
   return {
     locationName: 'Not Set',
-    locationLong: 0,
-    locationLat: 0,
+    locationLong: -109.3495,
+    locationLat: -27.113,
     displayName: '',
     pictureURL: '',
     firstName: '',
