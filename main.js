@@ -37,6 +37,7 @@ function likeness (meId, youId) {
   out.tags = []
   out.yourWeight = 0 // Weight of YOUR matching tags
   out.myWeight = 0 // Weight of MY matching tags
+  if (!userTagsDataCache[youId]) return out // Just in case a bad uid is provided
   let myTags = userTagsDataCache[meId]
   let yourTags = userTagsDataCache[youId]
   let keys = Object.keys(yourTags)
@@ -115,6 +116,7 @@ var findPeople = new Queue(queueRef, {specId: 'find_people', numWorkers: 1, 'san
         setTimeout(() => {
           outRef.remove()
         }, 50000)
+        // Task resolves. (Timeout will trigger 50 seconds after resolve)
         resolve()
       }, error => {
         reject(error)
@@ -125,6 +127,54 @@ var findPeople = new Queue(queueRef, {specId: 'find_people', numWorkers: 1, 'san
     reject(error)
   });
 
+})
+var profilePeople = new Queue(queueRef, {specId: 'profile_people', numWorkers: 1, 'sanitize': false}, function(data, progress, resolve, reject) {
+  if (!data.watching) { reject('Watching is not set!'); return false }
+  if (!data.list) { reject('List is not set!'); return false }
+  if (userDataCache === null) { reject('Firebase userDataCache is not set!'); return false }
+  if (userTagsDataCache === null) { reject('Firebase userTagsDataCache is not set!'); return false }
+  if (geofireDataCache === null) { reject('Firebase geofireDataCache is not set!'); return false }
+  progress(1)
+
+  let uid = data._uid
+  let userMe = userDataCache[uid]
+  let myTags = userTagsDataCache[uid]
+
+  let rebundle = []
+  let people = data.list.split(',')
+  people.forEach((person, i) => {
+    let like = likeness(uid, person)
+    rebundle[i] = {}
+    rebundle[i].uid = person
+    rebundle[i].yw = like.yourWeight
+    rebundle[i].mw = like.myWeight
+    rebundle[i].tags = like.tags
+    rebundle[i].dist = 0
+  })
+  progress(75)
+
+  // Sort
+  // My weight, or the things I find important are highest priority
+  rebundle.sort((a, b) => {
+    if (a.mw < b.mw) return 1
+    if (a.mw > b.mw) return -1
+    return 0
+  })
+
+  // Output to watching location
+  var outRef = dbRef.child('computed').child(uid).child(data.watching)
+  outRef.set(rebundle).then(() => {
+    // remove after 50 seconds
+    // move to separate task?
+    setTimeout(() => {
+      outRef.remove()
+    }, 50000)
+    // Task resolves. (Timeout will trigger 50 seconds after resolve)
+    resolve()
+  }, error => {
+    reject(error)
+  })
+  // end of send
 })
 
 // Move error to fail path
