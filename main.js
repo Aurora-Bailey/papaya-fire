@@ -38,6 +38,7 @@ function likeness (meId, youId) {
   out.yourWeight = 0 // Weight of YOUR matching tags
   out.myWeight = 0 // Weight of MY matching tags
   if (!userTagsDataCache[youId]) return out // Just in case a bad uid is provided
+  if (!userTagsDataCache[meId]) return out // Just in case you don't have any tags
   let myTags = userTagsDataCache[meId]
   let yourTags = userTagsDataCache[youId]
   let keys = Object.keys(yourTags)
