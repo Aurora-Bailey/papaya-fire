@@ -108,7 +108,7 @@ var findPeople = new Queue(queueRef, {specId: 'find_people', numWorkers: 1, 'san
       })
 
       // Output to watching location
-      var outRef = dbRef.child('findPeople').child(uid).child(data.watching)
+      var outRef = dbRef.child('computed').child(uid).child(data.watching)
       outRef.set(rebundle).then(() => {
         // remove after 50 seconds
         // move to separate task?
