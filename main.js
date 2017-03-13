@@ -34,23 +34,22 @@ dbRef.child('geofire').on('value', snap => {
 
 function likeness (meId, youId) {
   let out = {}
-  out.tags = {}
-  out.yourWeight = 0
-  out.myWeight = 0
-  out.avgWeight = 0
+  out.tags = []
+  out.yourWeight = 0 // Weight of YOUR matching tags
+  out.myWeight = 0 // Weight of MY matching tags
   let myTags = userTagsDataCache[meId]
   let yourTags = userTagsDataCache[youId]
   let keys = Object.keys(yourTags)
   keys.forEach((tagKey) => {
     if (myTags[tagKey]) {
       // Copy the highlighting of YOUR tags
-      out.tags[tagKey] = yourTags[tagKey].level
+      out.tags.push({n: tagKey, w: yourTags[tagKey].weight, l: yourTags[tagKey].level})
       out.yourWeight += yourTags[tagKey].weight
       out.myWeight += myTags[tagKey].weight
     }
   })
-  out.avgWeight = (out.myWeight + out.yourWeight) / 2
-  return out // {tags: {tag: level}, yourWeight, myWeight, avgWeight}
+  return out // {tags: {tag: level}, yourWeight, myWeight}
+  // not calculating total weight because it punishes people with lots of tags
 }
 
 // Setup Queues
@@ -58,6 +57,7 @@ var findPeople = new Queue(queueRef, {specId: 'find_people', numWorkers: 1, 'san
   if (!data.watching) { reject('Watching is not set!'); return false }
   if (userDataCache === null) { reject('Firebase userDataCache is not set!'); return false }
   if (userTagsDataCache === null) { reject('Firebase userTagsDataCache is not set!'); return false }
+  if (geofireDataCache === null) { reject('Firebase geofireDataCache is not set!'); return false }
   progress(1)
 
   let uid = data._uid
@@ -77,11 +77,11 @@ var findPeople = new Queue(queueRef, {specId: 'find_people', numWorkers: 1, 'san
       center: location, // [lat, lng]
       radius: Lib.mileToKilometer(userMe.distance) // Radius in kilometers
     });
-    // Fill user array one at a time
+    // Called once for each key in the area
     geoQuery.on("key_entered", (key, location, distance) => {
       if (key !== uid) usersInsideRadius.push({key, location, distance})
     })
-    // When the array is full
+    // When all keys have been called
     geoQuery.on("ready", () => {
       geoQuery.cancel() // GeoQuery has loaded and fired all other events for initial data
       progress(25)
@@ -92,24 +92,27 @@ var findPeople = new Queue(queueRef, {specId: 'find_people', numWorkers: 1, 'san
         let like = likeness(uid, you.key)
         rebundle[i] = {}
         rebundle[i].uid = you.key
-        rebundle[i].weight = Math.round(like.avgWeight)
+        rebundle[i].yw = like.yourWeight
+        rebundle[i].mw = like.myWeight
+        rebundle[i].tags = like.tags
         rebundle[i].dist = Math.round(you.distance)
       })
       progress(75)
 
       // Sort
+      // My weight, or the things I find important are highest priority
       rebundle.sort((a, b) => {
-        if (a.weight < b.weight) return 1
-        if (a.weight > b.weight) return -1
+        if (a.mw < b.mw) return 1
+        if (a.mw > b.mw) return -1
         return 0
       })
 
-      // start send
+      // Output to watching location
       var outRef = dbRef.child('findPeople').child(uid).child(data.watching)
       outRef.set(rebundle).then(() => {
-        // remove after 5 seconds
-        // move to separate task
-        setTimeout(function() {
+        // remove after 50 seconds
+        // move to separate task?
+        setTimeout(() => {
           outRef.remove()
         }, 50000)
         resolve()
@@ -121,20 +124,7 @@ var findPeople = new Queue(queueRef, {specId: 'find_people', numWorkers: 1, 'san
   }, error => {
     reject(error)
   });
-  /*
-  // output list of people (UID, WeightAverage, WeightMe, WeightYou, CommonTags)
-  var outRef = dbRef.child('findPeople').child(data._uid).child(data.watching)
-  outRef.set(['One', 'Two', 'Three']).then(() => {
-    // remove after 5 seconds
-    // move to separate task
-    setTimeout(function() {
-      outRef.remove()
-    }, 5000)
-    resolve()
-  }, error => {
-    reject(error)
-  })
-  */
+
 })
 
 // Move error to fail path
