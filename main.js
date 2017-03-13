@@ -109,6 +109,7 @@ var findPeople = new Queue(queueRef, {specId: 'find_people', numWorkers: 1, 'san
       })
 
       // Output to watching location
+      if (rebundle.length === 0) rebundle = 'empty'
       var outRef = dbRef.child('computed').child(uid).child(data.watching)
       outRef.set(rebundle).then(() => {
         // remove after 50 seconds
@@ -130,7 +131,7 @@ var findPeople = new Queue(queueRef, {specId: 'find_people', numWorkers: 1, 'san
 })
 var profilePeople = new Queue(queueRef, {specId: 'profile_people', numWorkers: 1, 'sanitize': false}, function(data, progress, resolve, reject) {
   if (!data.watching) { reject('Watching is not set!'); return false }
-  if (!data.list) { reject('List is not set!'); return false }
+  if (typeof data.list === 'undefined') { reject('List is not set!'); return false }
   if (userDataCache === null) { reject('Firebase userDataCache is not set!'); return false }
   if (userTagsDataCache === null) { reject('Firebase userTagsDataCache is not set!'); return false }
   if (geofireDataCache === null) { reject('Firebase geofireDataCache is not set!'); return false }
@@ -162,6 +163,7 @@ var profilePeople = new Queue(queueRef, {specId: 'profile_people', numWorkers: 1
   })
 
   // Output to watching location
+  if (data.list === '') rebundle = 'empty'
   var outRef = dbRef.child('computed').child(uid).child(data.watching)
   outRef.set(rebundle).then(() => {
     // remove after 50 seconds
