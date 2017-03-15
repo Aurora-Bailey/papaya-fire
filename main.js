@@ -27,9 +27,9 @@ let userTagsDataCache = null
 dbRef.child('userTags').on('value', snap => {
   userTagsDataCache = snap.val()
 })
-let geofireDataCache = null
-dbRef.child('geofire').on('value', snap => {
-  geofireDataCache = snap.val()
+let geofireUserDataCache = null
+dbRef.child('geofireUser').on('value', snap => {
+  geofireUserDataCache = snap.val()
 })
 
 function likeness (meId, youId) {
@@ -59,7 +59,7 @@ var findPeople = new Queue(queueRef, {specId: 'find_people', numWorkers: 1, 'san
   if (!data.watching) { reject('Watching is not set!'); return false }
   if (userDataCache === null) { reject('Firebase userDataCache is not set!'); return false }
   if (userTagsDataCache === null) { reject('Firebase userTagsDataCache is not set!'); return false }
-  if (geofireDataCache === null) { reject('Firebase geofireDataCache is not set!'); return false }
+  if (geofireUserDataCache === null) { reject('Firebase geofireUserDataCache is not set!'); return false }
   progress(1)
 
   let uid = data._uid
@@ -135,7 +135,7 @@ var profilePeople = new Queue(queueRef, {specId: 'profile_people', numWorkers: 1
   if (typeof data.list === 'undefined') { reject('List is not set!'); return false }
   if (userDataCache === null) { reject('Firebase userDataCache is not set!'); return false }
   if (userTagsDataCache === null) { reject('Firebase userTagsDataCache is not set!'); return false }
-  if (geofireDataCache === null) { reject('Firebase geofireDataCache is not set!'); return false }
+  if (geofireUserDataCache === null) { reject('Firebase geofireUserDataCache is not set!'); return false }
   progress(1)
 
   let uid = data._uid
