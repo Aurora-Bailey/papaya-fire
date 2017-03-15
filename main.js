@@ -16,7 +16,7 @@ admin.initializeApp({
 // Setup Refs
 var dbRef = admin.database().ref()
 var queueRef = dbRef.child('queue')
-var geoFire = new GeoFire(dbRef.child('geofire'))
+var geoFireUser = new GeoFire(dbRef.child('geofireUser'))
 
 // Pull database for working copy
 let userDataCache = null
@@ -67,7 +67,7 @@ var findPeople = new Queue(queueRef, {specId: 'find_people', numWorkers: 1, 'san
   let myTags = userTagsDataCache[uid]
 
   // Get user location
-  geoFire.get(uid).then(location => {
+  geoFireUser.get(uid).then(location => {
     if (!location) {
       reject('Provided key is not in GeoFire')
       return false
@@ -75,7 +75,7 @@ var findPeople = new Queue(queueRef, {specId: 'find_people', numWorkers: 1, 'san
 
     // Get people close to user
     let usersInsideRadius = []
-    var geoQuery = geoFire.query({
+    var geoQuery = geoFireUser.query({
       center: location, // [lat, lng]
       radius: Lib.mileToKilometer(userMe.distance) // Radius in kilometers
     });
