@@ -67,6 +67,8 @@ function likeness (meId, youId) {
   // not calculating total weight because it punishes people with lots of tags
 }
 
+// TODO: pagnation of all the queries
+
 // Setup Queues
 var findPeople = new Queue(queueRef, {specId: 'find_events', numWorkers: 1, 'sanitize': false}, function(data, progress, resolve, reject) {
   if (!data.watching) { reject('Watching is not set!'); return false }
@@ -74,7 +76,7 @@ var findPeople = new Queue(queueRef, {specId: 'find_events', numWorkers: 1, 'san
   if (userTagsDataCache === null) { reject('Firebase userTagsDataCache is not set!'); return false }
   if (geofireEventDataCache === null) { reject('Firebase geofireEventDataCache is not set!'); return false }
   if (eventDataCache === null) { reject('Firebase eventDataCache is not set!'); return false }
-  // temp if (eventAuthDataCache === null) { reject('Firebase eventAuthDataCache is not set!'); return false }
+  if (eventAuthDataCache === null) { reject('Firebase eventAuthDataCache is not set!'); return false }
   progress(1)
 
   let uid = data._uid
@@ -106,12 +108,36 @@ var findPeople = new Queue(queueRef, {specId: 'find_events', numWorkers: 1, 'san
       // Calculate event stuff
       let rebundle = []
       eventsInsideRadius.forEach((event, i) => {
-        // let like = likeness(uid, you.key)
+        let eventData = eventDataCache[event.key]
+        let eventAuthData = eventAuthDataCache[event.key]
+        let authKeys = Object.keys(eventAuthData.auth)
+
+        let inEvent = []
+        let mwt = 0 // my weight total
+        let ywt = 0
+        let numWeightAvg = 0
+        authKeys.forEach((authUID, index) => {
+          let like = likeness(uid, authUID)
+          let person = {}
+          person.uid = authUID
+          person.pic = userDataCache[authUID].pictureURL || ''
+          person.name = userDataCache[authUID].displayName || ''
+          person.yw = like.yourWeight
+          person.mw = like.myWeight
+          inEvent.push(person)
+
+          if (uid !== authUID) { // don't count yourself
+            mwt += like.myWeight // my weight total
+            ywt += like.myWeight
+            numWeightAvg++
+          }
+        })
+
         rebundle[i] = {}
         rebundle[i].eid = event.key
-        //rebundle[i].yw = like.yourWeight
-        //rebundle[i].mw = like.myWeight
-        //rebundle[i].tags = like.tags
+        rebundle[i].yw = Math.round(ywt / numWeightAvg) || 0 // average
+        rebundle[i].mw = Math.round(mwt / numWeightAvg) || 0
+        rebundle[i].ppl = inEvent.length > 0 ? inEvent : 'empty'
         rebundle[i].dist = Math.round(event.distance)
       })
       progress(75)
