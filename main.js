@@ -17,6 +17,7 @@ admin.initializeApp({
 var dbRef = admin.database().ref()
 var queueRef = dbRef.child('queue')
 var geoFireUser = new GeoFire(dbRef.child('geofireUser'))
+var geoFireEvent = new GeoFire(dbRef.child('geofireEvent'))
 
 // Pull database for working copy
 let userDataCache = null
@@ -30,6 +31,18 @@ dbRef.child('userTags').on('value', snap => {
 let geofireUserDataCache = null
 dbRef.child('geofireUser').on('value', snap => {
   geofireUserDataCache = snap.val()
+})
+let geofireEventDataCache = null
+dbRef.child('geofireEvent').on('value', snap => {
+  geofireEventDataCache = snap.val()
+})
+let eventDataCache = null
+dbRef.child('event').on('value', snap => {
+  eventDataCache = snap.val()
+})
+let eventAuthDataCache = null
+dbRef.child('eventAuth').on('value', snap => {
+  eventAuthDataCache = snap.val()
 })
 
 function likeness (meId, youId) {
@@ -55,6 +68,82 @@ function likeness (meId, youId) {
 }
 
 // Setup Queues
+var findPeople = new Queue(queueRef, {specId: 'find_events', numWorkers: 1, 'sanitize': false}, function(data, progress, resolve, reject) {
+  if (!data.watching) { reject('Watching is not set!'); return false }
+  if (userDataCache === null) { reject('Firebase userDataCache is not set!'); return false }
+  if (userTagsDataCache === null) { reject('Firebase userTagsDataCache is not set!'); return false }
+  if (geofireEventDataCache === null) { reject('Firebase geofireEventDataCache is not set!'); return false }
+  if (eventDataCache === null) { reject('Firebase eventDataCache is not set!'); return false }
+  // temp if (eventAuthDataCache === null) { reject('Firebase eventAuthDataCache is not set!'); return false }
+  progress(1)
+
+  let uid = data._uid
+  let userMe = userDataCache[uid]
+  let myTags = userTagsDataCache[uid]
+
+  // Get user location
+  geoFireUser.get(uid).then(location => {
+    if (!location) {
+      reject('Provided key is not in GeoFire')
+      return false
+    }
+
+    // Get events close to user
+    let eventsInsideRadius = []
+    var geoQuery = geoFireEvent.query({
+      center: location, // [lat, lng]
+      radius: Lib.mileToKilometer(userMe.distance) // Radius in kilometers
+    });
+    // Called once for each key in the area
+    geoQuery.on("key_entered", (key, location, distance) => {
+      eventsInsideRadius.push({key, location, distance})
+    })
+    // When all keys have been called
+    geoQuery.on("ready", () => {
+      geoQuery.cancel() // GeoQuery has loaded and fired all other events for initial data
+      progress(25)
+
+      // Calculate event stuff
+      let rebundle = []
+      eventsInsideRadius.forEach((event, i) => {
+        // let like = likeness(uid, you.key)
+        rebundle[i] = {}
+        rebundle[i].eid = event.key
+        //rebundle[i].yw = like.yourWeight
+        //rebundle[i].mw = like.myWeight
+        //rebundle[i].tags = like.tags
+        rebundle[i].dist = Math.round(event.distance)
+      })
+      progress(75)
+
+      // Sort
+      rebundle.sort((a, b) => {
+        if (a.eid < b.eid) return 1
+        if (a.eid > b.eid) return -1
+        return 0
+      })
+
+      // Output to watching location
+      if (rebundle.length === 0) rebundle = 'empty'
+      var outRef = dbRef.child('computed').child(uid).child(data.watching)
+      outRef.set(rebundle).then(() => {
+        // remove after 50 seconds
+        // move to separate task?
+        setTimeout(() => {
+          outRef.remove()
+        }, 50000)
+        // Task resolves. (Timeout will trigger 50 seconds after resolve)
+        resolve()
+      }, error => {
+        reject(error)
+      })
+      // end of send
+    })
+  }, error => {
+    reject(error)
+  });
+
+})
 var findPeople = new Queue(queueRef, {specId: 'find_people', numWorkers: 1, 'sanitize': false}, function(data, progress, resolve, reject) {
   if (!data.watching) { reject('Watching is not set!'); return false }
   if (userDataCache === null) { reject('Firebase userDataCache is not set!'); return false }
